@@ -13,6 +13,11 @@ import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 
+import com.example.fowltyphoidmonitor.data.api.ApiClient;
+import com.example.fowltyphoidmonitor.data.api.ApiService;
+import com.example.fowltyphoidmonitor.data.api.SupabaseClient;
+import com.example.fowltyphoidmonitor.data.models.Farmer;
+import com.example.fowltyphoidmonitor.data.models.Vet;
 import com.example.fowltyphoidmonitor.services.auth.AuthManager;
 import com.example.fowltyphoidmonitor.R;
 import com.example.fowltyphoidmonitor.data.requests.AuthResponse;
@@ -28,6 +33,7 @@ import com.google.android.material.textfield.TextInputLayout;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.TimeZone;
@@ -190,20 +196,83 @@ public class RegisterActivity extends AppCompatActivity {
             @Override
             public void onSuccess(AuthResponse response) {
                 Log.d(TAG, "[LWENA27] " + getCurrentTime() + " - Registration successful");
-                
-                // Ensure user type is saved immediately after registration
                 authManager.setUserType(userType);
                 Log.d(TAG, "[LWENA27] " + getCurrentTime() + " - User type set to: " + userType);
-                
-                setLoadingState(false);
-                navigateToProfileSetup();
+
+                // --- Insert user into correct profile table with user_id ---
+                ApiService apiService = SupabaseClient.getInstance(RegisterActivity.this).getApiService();
+                String userId = null;
+                if (response.getUser() != null) {
+                    userId = response.getUser().getId();
+                }
+                if (userId == null || userId.isEmpty()) {
+                    setLoadingState(false);
+                    showError("Failed to get user ID from Supabase. Registration aborted.");
+                    return;
+                }
+                if (userType.equals(USER_TYPE_FARMER)) {
+                    Farmer farmer = new Farmer();
+                    farmer.setUserId(userId);
+                    farmer.setEmail(email);
+                    farmer.setName(displayName);
+                    farmer.setPhoneNumber(phoneNumber);
+                    // Add any other required fields
+                    apiService.createFarmer(farmer).enqueue(new retrofit2.Callback<Farmer>() {
+                        @Override
+                        public void onResponse(retrofit2.Call<Farmer> call, retrofit2.Response<Farmer> response) {
+                            setLoadingState(false);
+                            if (response.isSuccessful()) {
+                                navigateToProfileSetup();
+                            } else {
+                                showError("Failed to create farmer profile. Please try again.");
+                            }
+                        }
+                        @Override
+                        public void onFailure(retrofit2.Call<Farmer> call, Throwable t) {
+                            setLoadingState(false);
+                            showError("Network error: " + t.getMessage());
+                        }
+                    });
+                } else if (userType.equals(USER_TYPE_VET)) {
+                    Vet vet = new Vet();
+                    vet.setUserId(userId);
+                    vet.setEmail(email);
+                    vet.setName(displayName);
+                    vet.setPhoneNumber(phoneNumber);
+                    // Add any other required fields
+                    String authToken = "Bearer " + response.getAccessToken();
+                    String apiKey = com.example.fowltyphoidmonitor.config.SupabaseConfig.SUPABASE_ANON_KEY;
+                    apiService.createVet(authToken, apiKey, vet).enqueue(new retrofit2.Callback<Vet>() {
+                        @Override
+                        public void onResponse(retrofit2.Call<Vet> call, retrofit2.Response<Vet> response) {
+                            setLoadingState(false);
+                            if (response.isSuccessful()) {
+                                navigateToProfileSetup();
+                            } else {
+                                showError("Failed to create vet profile. Please try again.");
+                            }
+                        }
+                        @Override
+                        public void onFailure(retrofit2.Call<Vet> call, Throwable t) {
+                            setLoadingState(false);
+                            showError("Network error: " + t.getMessage());
+                        }
+                    });
+                } else {
+                    setLoadingState(false);
+                    showError("Invalid user type. Registration aborted.");
+                }
             }
 
             @Override
             public void onError(String message) {
                 Log.e(TAG, "[LWENA27] " + getCurrentTime() + " - Registration error: " + message);
                 setLoadingState(false);
-                showError(getString(R.string.registration_error));
+                if (message != null && (message.contains("user_already_exists") || message.contains("already registered") || message.contains("Email may already be in use"))) {
+                    showError("This email is already registered. Please log in or use a different email address.");
+                } else {
+                    showError(getString(R.string.registration_error));
+                }
             }
         });
     }
@@ -316,4 +385,3 @@ public class RegisterActivity extends AppCompatActivity {
         prefManager = null;
     }
 }
-

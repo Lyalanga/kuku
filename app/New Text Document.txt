@@ -1,0 +1,35 @@
+Here’s a summary for any developer reviewing this work:
+<hr></hr>
+Summary of User Registration & User-Type Separation Fixes
+Background:
+The app previously allowed users (farmers, vets/admins/doctors) to be registered in the wrong Supabase table, causing user-type confusion and incorrect access to features.
+What Was Done:
+User Type Enforcement:
+Registration now requires an explicit userType ("farmer" or "vet"). No default or fallback is allowed.
+"admin" and "doctor" are internally mapped to "vet" for all logic.
+Correct Table Insertion:
+After successful Supabase Auth registration, the app extracts the unique user_id from the Auth response.
+If userType is "farmer", a Farmer object is created with this user_id and posted to the farmers table.
+If userType is "vet", a Vet object is created with this user_id and posted to the vets table, using the required Authorization and API key headers.
+No Cross-Insertion:
+Each user is inserted into only one table, never both.
+No fallback to "farmer" for vet/admin/doctor is possible.
+Error Handling:
+User-friendly error messages are shown for duplicate emails, missing user_id, or failed profile creation.
+All API calls are checked for success and handle errors gracefully.
+Code Clean-Up:
+Fixed method signatures and imports to match the actual ApiService interface.
+Removed unused or incorrect code and clarified logic for future maintainers.
+How Data Flows:
+Registration → Supabase Auth (get user_id) → Create Farmer/Vet object → Insert into correct table via Retrofit API call.
+How to Get User Data:
+Use the user_id to fetch the profile from the correct table (farmers or vets) using the appropriate GET endpoint.
+<hr></hr>
+Result:
+User registration is now robust, with strict user-type separation and correct data flow to Supabase. Each user is guaranteed to be in the right table, with all required fields set.
+<hr></hr>
+Next Steps for Developers:
+Test registration for both user types.
+Confirm that each user appears only in their correct table in Supabase.
+Review error logs for any edge cases or failures.
+If further issues arise, check the ApiService interface and ensure all required fields and headers are provided for each API call.

@@ -86,7 +86,7 @@ public class RegisterActivity extends AppCompatActivity {
     private View loadingOverlay;
 
     // User type received from intent
-    private String userType = USER_TYPE_FARMER; // Default to farmer
+    private String userType; // No default value, must be set explicitly
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -97,18 +97,17 @@ public class RegisterActivity extends AppCompatActivity {
         authManager = AuthManager.getInstance(this);
         prefManager = new SharedPreferencesManager(this);
 
-        // Get user type from intent
+        // Get user type from intent (required)
         userType = getIntent().getStringExtra("userType");
-        if (userType == null) {
-            userType = getIntent().getStringExtra("userType"); // Changed to camelCase for consistency
-        }
-        if (userType == null) {
-            userType = USER_TYPE_FARMER; // Default to farmer
+        if (userType == null || !(userType.equals("farmer") || userType.equals("vet") || userType.equals("admin") || userType.equals("doctor"))) {
+            Toast.makeText(this, "User type is required. Please select a valid user type.", Toast.LENGTH_LONG).show();
+            finish();
+            return;
         }
 
-        // Map vet to admin since they're the same role
-        if ("vet".equals(userType)) {
-            userType = USER_TYPE_ADMIN;
+        // Map admin/doctor to vet for internal logic
+        if (userType.equals("admin") || userType.equals("doctor")) {
+            userType = USER_TYPE_VET;
         }
 
         // Initialize views
